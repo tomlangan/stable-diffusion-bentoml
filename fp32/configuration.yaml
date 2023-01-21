@@ -1,2 +1,2 @@
 runners:
-  timeout: 900
+  timeout: 10000

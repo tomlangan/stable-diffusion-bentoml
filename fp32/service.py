@@ -1,6 +1,7 @@
 from contextlib import ExitStack
 from starlette.middleware.cors import CORSMiddleware
 
+import logging
 import torch
 from torch import autocast
 from diffusers import StableDiffusionPipeline
@@ -16,7 +17,7 @@ class StableDiffusionRunnable(bentoml.Runnable):
     SUPPORTS_CPU_MULTI_THREADING = True
 
     def __init__(self):
-        model_id = "./models/v1_4"
+        model_id = "./models/openjourney"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         txt2img_pipe = StableDiffusionPipeline.from_pretrained(model_id)
@@ -73,6 +74,7 @@ class StableDiffusionRunnable(bentoml.Runnable):
 
     @bentoml.Runnable.method(batchable=False, batch_dim=0)
     def img2img(self, init_image, data):
+        logging.info(f"DATA: {data}")
         new_size = None
         longer_side = max(*init_image.size)
         if longer_side > 512:
@@ -89,6 +91,13 @@ class StableDiffusionRunnable(bentoml.Runnable):
         num_inference_steps = data.get('num_inference_steps', 50)
         generator = torch.Generator(self.device)
         generator.manual_seed(data.get('seed'))
+
+        logging.info(f"DATA: {data}")
+        logging.info(f"prompt: {prompt}")
+        logging.info(f"strength: {strength}")
+        logging.info(f"guidance_scale: {guidance_scale}")
+        logging.info(f"num_inference_steps: {num_inference_steps}")
+        logging.info(f"seed: {data['seed']}")
 
         if not data['safety_check']:
             self.img2img_pipe.safety_checker = lambda images, **kwargs: (images, False)
@@ -169,7 +178,7 @@ def txt2img(data, context):
 
 class Img2ImgInput(BaseModel):
     prompt: str
-    strength: float = 0.8
+    strength: float = 0.4
     guidance_scale: float = 7.5
     num_inference_steps: int = 50
     safety_check: bool = True
@@ -178,6 +187,7 @@ class Img2ImgInput(BaseModel):
 img2img_input_spec = Multipart(img=Image(), data=JSON(pydantic_model=Img2ImgInput))
 @svc.api(input=img2img_input_spec, output=Image())
 def img2img(img, data, context):
+    logging.info(f"DATA1: {data}")
     data = data.dict()
     data['seed'] = generate_seed_if_needed(data['seed'])
     image = stable_diffusion_runner.img2img.run(img, data)
