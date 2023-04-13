@@ -2,7 +2,7 @@ service: "service.py:svc"
 include:
   - "service.py"
   - "requirements.txt"
-  - "models/openjourney"
+  - "models/openjourney-v4"
   - "configuration.yaml"
 python:
   packages:
