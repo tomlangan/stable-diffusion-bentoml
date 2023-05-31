@@ -2,7 +2,8 @@ service: "service.py:svc"
 include:
   - "service.py"
   - "requirements.txt"
-  - "models/openjourney-v4"
+  - "models/Realistic_Vision_V2.0"
+  - "models/sd-vae-ft-ema"
   - "configuration.yaml"
 python:
   packages:

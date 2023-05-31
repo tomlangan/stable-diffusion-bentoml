@@ -7,6 +7,7 @@ from torch import autocast
 from diffusers import StableDiffusionPipeline
 from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers import StableDiffusionInpaintPipeline
+from diffusers.models import AutoencoderKL
 
 from pydantic import BaseModel
 import bentoml
@@ -17,10 +18,12 @@ class StableDiffusionRunnable(bentoml.Runnable):
     SUPPORTS_CPU_MULTI_THREADING = True
 
     def __init__(self):
-        model_id = "./models/openjourney-v4"
+        model_id = "./models/Realistic_Vision_V2.0"
+        vae_id = './models/sd-vae-ft-ema'
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        txt2img_pipe = StableDiffusionPipeline.from_pretrained(model_id)
+        vae = AutoencoderKL.from_pretrained(vae_id)
+        txt2img_pipe = StableDiffusionPipeline.from_pretrained(model_id, vae=vae)
 
         self.txt2img_pipe = txt2img_pipe.to(self.device)
 
