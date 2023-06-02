@@ -13,6 +13,42 @@ from pydantic import BaseModel
 import bentoml
 from bentoml.io import Image, JSON, Multipart
 
+
+def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
+    """ Get pipeline embeds for prompts bigger than the maxlength of the pipe
+    :param pipeline:
+    :param prompt:
+    :param negative_prompt:
+    :param device:
+    :return:
+    """
+    max_length = pipeline.tokenizer.model_max_length
+
+    # simple way to determine length of tokens
+    count_prompt = len(prompt.split(" "))
+    count_negative_prompt = len(negative_prompt.split(" "))
+
+    # create the tensor based on which prompt is longer
+    if count_prompt >= count_negative_prompt:
+        input_ids = pipeline.tokenizer(prompt, return_tensors="pt", truncation=False).input_ids.to(device)
+        shape_max_length = input_ids.shape[-1]
+        negative_ids = pipeline.tokenizer(negative_prompt, truncation=False, padding="max_length",
+                                          max_length=shape_max_length, return_tensors="pt").input_ids.to(device)
+
+    else:
+        negative_ids = pipeline.tokenizer(negative_prompt, return_tensors="pt", truncation=False).input_ids.to(device)
+        shape_max_length = negative_ids.shape[-1]
+        input_ids = pipeline.tokenizer(prompt, return_tensors="pt", truncation=False, padding="max_length",
+                                       max_length=shape_max_length).input_ids.to(device)
+
+    concat_embeds = []
+    neg_embeds = []
+    for i in range(0, shape_max_length, max_length):
+        concat_embeds.append(pipeline.text_encoder(input_ids[:, i: i + max_length])[0])
+        neg_embeds.append(pipeline.text_encoder(negative_ids[:, i: i + max_length])[0])
+
+    return torch.cat(concat_embeds, dim=1), torch.cat(neg_embeds, dim=1)
+
 class StableDiffusionRunnable(bentoml.Runnable):
     SUPPORTED_RESOURCES = ("nvidia.com/gpu", "cpu")
     SUPPORTS_CPU_MULTI_THREADING = True
@@ -50,6 +86,7 @@ class StableDiffusionRunnable(bentoml.Runnable):
     @bentoml.Runnable.method(batchable=False, batch_dim=0)
     def txt2img(self, data):
         prompt = data["prompt"]
+        negative_prompt = data.get('negative_prompt', None)
         guidance_scale = data.get('guidance_scale', 7.5)
         height = data.get('height', 512)
         width = data.get('width', 512)
@@ -60,12 +97,24 @@ class StableDiffusionRunnable(bentoml.Runnable):
         if not data['safety_check']:
             self.txt2img_pipe.safety_checker = lambda images, **kwargs: (images, False)
 
+        if negative_prompt is None:
+            negative_prompt = ""
+
+        print(f"Our inputs PROMPT: {prompt} NEG: {negative_prompt}")
+
+        prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(self.txt2img_pipe, prompt, negative_prompt, "cuda")  
+
+        
+        print("## Prompt embeds ", prompt_embeds)
+        print("## Negative prompt embeds ", negative_prompt_embeds)
+
         with ExitStack() as stack:
             if self.device != "cpu":
                 _ = stack.enter_context(autocast(self.device))
 
             images = self.txt2img_pipe(
-                prompt=prompt,
+                prompt_embeds=prompt_embeds, 
+                negative_prompt_embeds=negative_prompt_embeds,
                 guidance_scale=guidance_scale,
                 height=height,
                 width=width,
