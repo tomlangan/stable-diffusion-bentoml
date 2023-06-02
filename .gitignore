@@ -131,3 +131,6 @@ output.jpg
 */main.tf
 # ignore downloads bento
 *.bento
+fp32/models/openjourney-v4/
+fp32/models/Realistic_Vision_V2.0/
+fp32/models/sd-vae-ft-ema/
