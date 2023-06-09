@@ -2,7 +2,7 @@ service: "service.py:svc"
 include:
   - "service.py"
   - "requirements.txt"
-  - "models/Realistic_Vision_V2.0"
+  - "models/dreamlike-photoreal-2.0"
   - "models/sd-vae-ft-ema"
   - "configuration.yaml"
 python:
